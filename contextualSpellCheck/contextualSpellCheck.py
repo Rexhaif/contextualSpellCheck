@@ -320,9 +320,9 @@ class ContextualSpellCheck(object):
                 )
                 top_n_score, top_n_tokens = torch.topk(
                     token_probability, top_n, dim=1
-                ).to(torch.device("cpu"))
-                top_n_tokens = top_n_tokens[0].tolist()
-                top_n_score = top_n_score[0].tolist()
+                )
+                top_n_tokens = top_n_tokens[0].to('cpu').tolist()
+                top_n_score = top_n_score[0].to('cpu').tolist()
             if self.debug:
                 # print("top_n_tokens:", top_n_tokens)
                 print("token_score: ", top_n_score)
