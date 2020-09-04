@@ -11,6 +11,8 @@ from spacy.vocab import Vocab
 
 from transformers import AutoModelForMaskedLM, AutoTokenizer
 
+device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+
 
 class ContextualSpellCheck(object):
     """
@@ -119,6 +121,8 @@ class ContextualSpellCheck(object):
         logging.getLogger("transformers").setLevel(logging.ERROR)
         self.BertTokenizer = AutoTokenizer.from_pretrained(self.model_name)
         self.BertModel = AutoModelForMaskedLM.from_pretrained(self.model_name)
+        self.BertModel.eval()
+        self.BertModel = self.BertModel.to(device)
         self.mask = self.BertTokenizer.mask_token
         self.debug = debug
         self.performance = performance
@@ -302,23 +306,23 @@ class ContextualSpellCheck(object):
                     "updated query is:\n",
                     update_query,
                 )
-
-            model_input = self.BertTokenizer.encode(
-                update_query, return_tensors="pt"
-            )
-            mask_token_index = torch.where(
-                model_input == self.BertTokenizer.mask_token_id
-            )[1]
-            token_logits = self.BertModel(model_input)[0]
-            mask_token_logits = token_logits[0, mask_token_index, :]
-            token_probability = torch.nn.functional.softmax(
-                mask_token_logits, dim=1
-            )
-            top_n_score, top_n_tokens = torch.topk(
-                token_probability, top_n, dim=1
-            )
-            top_n_tokens = top_n_tokens[0].tolist()
-            top_n_score = top_n_score[0].tolist()
+            with torch.no_grad():
+                model_input = self.BertTokenizer.encode(
+                    update_query, return_tensors="pt"
+                ).to(device)
+                mask_token_index = torch.where(
+                    model_input == self.BertTokenizer.mask_token_id
+                )[1].to(device)
+                token_logits = self.BertModel(model_input)[0]
+                mask_token_logits = token_logits[0, mask_token_index, :]
+                token_probability = torch.nn.functional.softmax(
+                    mask_token_logits, dim=1
+                )
+                top_n_score, top_n_tokens = torch.topk(
+                    token_probability, top_n, dim=1
+                ).to(torch.device("cpu"))
+                top_n_tokens = top_n_tokens[0].tolist()
+                top_n_score = top_n_score[0].tolist()
             if self.debug:
                 # print("top_n_tokens:", top_n_tokens)
                 print("token_score: ", top_n_score)
